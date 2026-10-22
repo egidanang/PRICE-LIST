@@ -38,6 +38,7 @@ def normalize_motor_name(s):
     s = str(s).strip().upper().replace('"', '')
     s = s.replace('/', ' / ')
     s = re.sub(r'\s+', ' ', s).strip()
+    s = s.replace('N - MAX', 'N-MAX').replace('N MAX', 'N-MAX')
     alias_map = {
         'FINO 125 PREMIUM / SPORTI': 'NEW FINO PREMIUM / SPORTY 125 BLUE CORE',
         'NEW FINO PREMIUM 125 BLUE CORE': 'NEW FINO PREMIUM / SPORTY 125 BLUE CORE',
@@ -54,13 +55,17 @@ def normalize_motor_name(s):
         'G - ULTIMA HYBIRD S': 'G - ULTIMA HYBRID S',
         'G - ULTIMA HYBIRD SOLID': 'G - ULTIMA HYBRID SOLID',
         'G - ULTIMA HYBIRD SMART': 'G - ULTIMA HYBRID SMART',
+        'ALL NEW N-MAX 155': 'ALL NEW N-MAX',
+        'ALL NEW N-MAX 155 S': 'ALL NEW N-MAX S',
+        'ALL NEW N-MAX 155 CONNECTED': 'ALL NEW N-MAX CONNECTED',
+        'ALL NEW N-MAX 155 ABS CONNECTED': 'ALL NEW N-MAX ABS C',
     }
     return alias_map.get(s, s)
 
 def categorize_motor(name):
     """Mengelompokkan tipe motor ke dalam kategori seri."""
     n = name.upper()
-    if 'NMAX' in n or 'N - MAX' in n:
+    if 'NMAX' in n or 'N-MAX' in n:
         return 'NMAX SERIES'
     elif 'FILANO' in n or 'GRAND FILANO' in n:
         return 'FILLANO SERIES'
@@ -600,7 +605,7 @@ else:
                 <span style="font-size:13px; color:#fde047;" id="n-angsuran"></span>
             </div>
             <div class="notif-sub">
-                Tipe: <strong id="n-motor" style="color:#fff;"></strong> &nbsp;|&nbsp; Harga OTR: <strong id="n-dp" style="color:#fff;"></strong>
+                Tipe: <strong id="n-motor" style="color:#fff;"></strong> &nbsp;|&nbsp; Harga / DP Gross: <strong id="n-dp" style="color:#fff;"></strong>
             </div>
 
             <div class="metric-grid">
@@ -707,11 +712,13 @@ else:
 
     components.html(html_code, height=620, scrolling=False)
 
-    df_csv = pd.DataFrame(csv_export_rows)
-    csv_bytes = df_csv.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Download Tabel Komparasi (CSV)",
-        data=csv_bytes,
-        file_name=f"Komparasi_Angsuran_{pilih_motor.replace(' ', '_')}.csv",
-        mime="text/csv"
-    )
+    # Tombol Download CSV HANYA MUNCUL JIKA USER ADALAH ADMIN (PAPINYACICOZRA)
+    if is_admin:
+        df_csv = pd.DataFrame(csv_export_rows)
+        csv_bytes = df_csv.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download Tabel Komparasi (CSV)",
+            data=csv_bytes,
+            file_name=f"Komparasi_Angsuran_{pilih_motor.replace(' ', '_')}.csv",
+            mime="text/csv"
+        )
