@@ -8,7 +8,7 @@ import io
 
 # Konfigurasi Halaman Full Wide (Tanpa Sidebar Kiri)
 st.set_page_config(
-    page_title="Dashboard Komparasi Angsuran Yamaha",
+    page_title="Komparasi PL Yamaha Jember",
     page_icon="🏍️",
     layout="wide"
 )
@@ -77,6 +77,15 @@ def load_all_programs_from_bytes(file_bytes, file_name):
         excel_file = io.BytesIO(file_bytes)
     else:
         excel_file = file_bytes
+
+    # 0. Sheet CASH
+    df_cash_raw = pd.read_excel(excel_file, sheet_name='CASH')
+    df_cash = df_cash_raw[pd.to_numeric(df_cash_raw.iloc[:, 1], errors='coerce').notna()].copy()
+    df_cash.columns = ['Empty', 'NO', 'TYPE', 'OTR', 'DISKON_2023', 'DISKON_2024', 'DISKON_2025', 'DISKON_2026', 'INCV_SALES', 'INCV_COUNTER']
+    df_cash = df_cash.drop(columns=['Empty']).reset_index(drop=True)
+    df_cash['TYPE_NORM'] = df_cash['TYPE'].apply(normalize_motor_name)
+    for col in ['OTR', 'DISKON_2023', 'DISKON_2024', 'DISKON_2025', 'DISKON_2026', 'INCV_SALES', 'INCV_COUNTER']:
+        df_cash[col] = pd.to_numeric(df_cash[col], errors='coerce').fillna(0)
 
     # 1. Sheet REGULER
     df_reg_raw = pd.read_excel(excel_file, sheet_name='REGULER ')
@@ -147,20 +156,19 @@ def load_all_programs_from_bytes(file_bytes, file_name):
         df_baf[col] = pd.to_numeric(df_baf[col], errors='coerce').fillna(0)
     df_baf = df_baf.reset_index(drop=True)
 
-    return df_reg, df_all33, df_adira33, df_baf
+    return df_cash, df_reg, df_all33, df_adira33, df_baf
 
-# --- HEADER UTAMA & PANEL AKSES / PASSWORD DI KANAN ATAS ---
+# --- HEADER UTAMA ---
 col_head1, col_head2 = st.columns([2.2, 1.8])
 
 with col_head1:
-    st.title("🏍️ Dashboard Komparasi Angsuran Yamaha")
-    st.caption("💡 **Fitur Interaktif:** Klik angka angsuran untuk melihat rincian DISC, Insentif Salesman, & DP Bayar.")
+    st.title("Komparasi PL Yamaha Jember")
+    st.markdown("⚠️ *hanya dipergunakan untuk kepentingan internal dealer MDS Area Jember*")
+    st.caption("💡 **Fitur Interaktif:** Klik angka angsuran atau tombol CASH untuk melihat rincian DISC, Insentif Salesman, & Harga Nett.")
 
 with col_head2:
-    # Input Password Akses / Mode Upload
     mode_akses = st.text_input("🔑 Masukkan kode akses:", value="", type="password")
 
-# Cek Password (default dealer jika kosong/salah, aktif upload jika PAPINYACICOZRA)
 is_admin = (mode_akses.strip().upper() == "PAPINYACICOZRA")
 
 uploaded_file = None
@@ -173,29 +181,26 @@ else:
     else:
         st.info("🔒 **Mode Dealer (Sales):** Tombol upload file disembunyikan.")
 
-# Load data (menggunakan file uploader jika admin upload, atau file default)
 try:
     if uploaded_file is not None:
         file_bytes = uploaded_file.getvalue()
-        df_reg, df_all33, df_adira33, df_baf = load_all_programs_from_bytes(file_bytes, uploaded_file.name)
+        df_cash, df_reg, df_all33, df_adira33, df_baf = load_all_programs_from_bytes(file_bytes, uploaded_file.name)
     else:
-        df_reg, df_all33, df_adira33, df_baf = load_all_programs_from_bytes(DEFAULT_FILEPATH, DEFAULT_FILEPATH)
+        df_cash, df_reg, df_all33, df_adira33, df_baf = load_all_programs_from_bytes(DEFAULT_FILEPATH, DEFAULT_FILEPATH)
 except Exception as e:
-    st.error(f"Gagal memuat file Excel. Pastikan format file sesuai. Error: {e}")
+    st.error(f"Gagal memuat file Excel. Error: {e}")
     st.stop()
 
-# Kumpulkan seluruh tipe motor gabungan dari semua program
 all_motor_types = sorted(list(
     set(df_reg['TYPE_NORM']) | set(df_all33['TYPE_NORM']) | set(df_adira33['TYPE_NORM']) | set(df_baf['TYPE_NORM'])
 ))
 
-# Pemetaan Kategori Seri Motor
 motor_category_map = {m: categorize_motor(m) for m in all_motor_types}
 available_categories = ['NMAX SERIES', 'FILLANO SERIES', 'FAZZIO SERIES', 'GEAR SERIES', 'OTHERS']
 
 st.divider()
 
-# --- FILTER 2 TINGKAT: KATEGORI SERI & MODEL SPESIFIK ---
+# --- FILTER 2 TINGKAT ---
 col_f1, col_f2, col_f3 = st.columns([1.2, 1.8, 2.0])
 
 with col_f1:
@@ -208,6 +213,7 @@ if not filtered_motors:
 with col_f2:
     pilih_motor = st.selectbox("2️⃣ Pilih Model Spesifik:", filtered_motors)
 
+sub_cash = df_cash[df_cash['TYPE_NORM'] == pilih_motor]
 sub_reg = df_reg[df_reg['TYPE_NORM'] == pilih_motor]
 sub_all33 = df_all33[df_all33['TYPE_NORM'] == pilih_motor]
 sub_adi33 = df_adira33[df_adira33['TYPE_NORM'] == pilih_motor]
@@ -218,7 +224,7 @@ available_dps = sorted(list(
 ))
 
 otr_val = 0
-for s in [sub_reg, sub_all33, sub_adi33, sub_baf]:
+for s in [sub_cash, sub_reg, sub_all33, sub_adi33, sub_baf]:
     if not s.empty:
         otr_val = s['OTR'].iloc[0]
         break
@@ -237,6 +243,38 @@ st.markdown(
     f"**Acuan Tahun Rangka:** `Noka 2026 (Berjalan)` &nbsp;|&nbsp; "
     f"**Acuan Insentif:** `Insentif Salesman`"
 )
+
+# --- TOMBOL ITEM CASH SEBELUM TABEL ---
+cash_row = sub_cash.iloc[0] if not sub_cash.empty else None
+if cash_row is not None:
+    c_disc26 = float(cash_row['DISKON_2026'])
+    c_incv = float(cash_row['INCV_SALES'])
+    c_otr = float(cash_row['OTR'])
+    
+    cash_payload = {
+        "motor": pilih_motor,
+        "program": "CASH (INSTANSI / PO)",
+        "dp_gross": format_rp_angka(c_otr),
+        "angsuran": "TUNAI (CASH)",
+        "tahun_noka": "2026",
+        "disc": format_rp_angka(c_disc26),
+        "insentif": format_rp_angka(c_incv),
+        "dp_min_disc": format_rp_angka(c_otr - c_disc26),
+        "dp_min_disc_incv": format_rp_angka(c_otr - c_disc26 - c_incv)
+    }
+    cash_json = json.dumps(cash_payload).replace('"', '&quot;')
+    
+    st.markdown(
+        f"""
+        <div style="margin: 15px 0 10px 0;">
+            <button onclick="showCashNotif({cash_json})" style="background-color: #047857; color: white; border: none; padding: 10px 18px; border-radius: 6px; font-weight: 600; font-size: 14px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                💵 CEK CASH (INSTANSI / PO) — Klik untuk Rincian
+            </button>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
 st.markdown("---")
 
 # --- MEMBANGUN TABEL HTML INTERAKTIF FULL LEBAR ---
@@ -262,7 +300,6 @@ else:
         
         cells_html = f'<td class="sticky-col">{dp_str}</td>'
         
-        # 1. REGULER (11x - 47x)
         for t in [11, 17, 23, 29, 35, 47]:
             col_label = f'REGULER ({t}x)'
             if not r_row.empty and r_row.iloc[0][f'ANGS_{t}'] > 0:
@@ -290,7 +327,6 @@ else:
                 cells_html += '<td class="empty-cell"></td>'
                 csv_row[col_label] = ""
 
-        # 2. ALL LEASING 33 (33x)
         col_label = 'ALL LEASING 33 (33x)'
         if not al_row.empty and al_row.iloc[0]['ANGS_33'] > 0:
             al = al_row.iloc[0]
@@ -317,7 +353,6 @@ else:
             cells_html += '<td class="empty-cell"></td>'
             csv_row[col_label] = ""
 
-        # 3. ADIRA 33 (33x)
         col_label = 'ADIRA 33 (33x)'
         if not ad_row.empty and ad_row.iloc[0]['ANGS_33'] > 0:
             ad = ad_row.iloc[0]
@@ -344,7 +379,6 @@ else:
             cells_html += '<td class="empty-cell"></td>'
             csv_row[col_label] = ""
 
-        # 4. BAF TOP (11x & 17x)
         for t in [11, 17]:
             col_label = f'BAF TOP ({t}x)'
             if not bf_row.empty and bf_row.iloc[0][f'ANGS_{t}'] > 0:
@@ -458,7 +492,6 @@ else:
             background-color: #f8fafc;
         }}
 
-        /* Overlay & Popup Modal Notification */
         #notif-overlay {{
             display: none;
             position: fixed;
@@ -560,7 +593,6 @@ else:
         </table>
     </div>
 
-    <!-- Kotak Notifikasi Popup (Klik di luar untuk menutup) -->
     <div id="notif-overlay" onclick="closeNotif(event)">
         <div id="notif-box" onclick="event.stopPropagation()">
             <div class="notif-title">
@@ -568,14 +600,14 @@ else:
                 <span style="font-size:13px; color:#fde047;" id="n-angsuran"></span>
             </div>
             <div class="notif-sub">
-                Tipe: <strong id="n-motor" style="color:#fff;"></strong> &nbsp;|&nbsp; DP Gross: <strong id="n-dp" style="color:#fff;"></strong>
+                Tipe: <strong id="n-motor" style="color:#fff;"></strong> &nbsp;|&nbsp; Harga OTR: <strong id="n-dp" style="color:#fff;"></strong>
             </div>
 
             <div class="metric-grid">
                 <div class="metric-row">
                     <div>
-                        <span class="metric-label">1. DISC (Noka 2026)</span>
-                        <span class="metric-note">Pedoman diskon tahun berjalan</span>
+                        <span class="metric-label" id="lbl-disc">1. DISC (Noka 2026)</span>
+                        <span class="metric-note" id="note-disc">Pedoman diskon tahun berjalan</span>
                     </div>
                     <span class="metric-val" id="n-disc"></span>
                 </div>
@@ -590,16 +622,16 @@ else:
 
                 <div class="metric-row highlight-1">
                     <div>
-                        <span class="metric-label">3. DISC (DP Bayar)</span>
-                        <span class="metric-note">DP Gross dikurangi Diskon 2026</span>
+                        <span class="metric-label" id="lbl-dpdisc">3. DP - DISC (DP Bayar)</span>
+                        <span class="metric-note" id="note-dpdisc">DP Gross dikurangi Diskon 2026</span>
                     </div>
                     <span class="metric-val" style="color:#4ade80;" id="n-dp-disc"></span>
                 </div>
 
                 <div class="metric-row highlight-2">
                     <div>
-                        <span class="metric-label">4. DP - DISC - INSENTIF</span>
-                        <span class="metric-note">Nett setelah dikurangi Diskon & Insentif Salesman</span>
+                        <span class="metric-label" id="lbl-net">4. DP - DISC - INSENTIF</span>
+                        <span class="metric-note" id="note-net">Nett setelah dikurangi Diskon & Insentif Salesman</span>
                     </div>
                     <span class="metric-val" style="color:#fbbf24;" id="n-dp-disc-incv"></span>
                 </div>
@@ -630,6 +662,33 @@ else:
             document.getElementById('n-incv').innerText = data.insentif;
             document.getElementById('n-dp-disc').innerText = data.dp_min_disc;
             document.getElementById('n-dp-disc-incv').innerText = data.dp_min_disc_incv;
+
+            document.getElementById('lbl-disc').innerText = "1. DISC (Noka 2026)";
+            document.getElementById('note-disc').innerText = "Pedoman diskon tahun berjalan";
+            document.getElementById('lbl-dpdisc').innerText = "3. DP - DISC (DP Bayar)";
+            document.getElementById('note-dpdisc').innerText = "DP Gross dikurangi Diskon 2026";
+            document.getElementById('lbl-net').innerText = "4. DP - DISC - INSENTIF";
+            document.getElementById('note-net').innerText = "Nett setelah dikurangi Diskon & Insentif Salesman";
+
+            document.getElementById('notif-overlay').style.display = 'flex';
+        }}
+
+        function showCashNotif(data) {{
+            document.getElementById('n-program').innerText = data.program;
+            document.getElementById('n-angsuran').innerText = data.angsuran;
+            document.getElementById('n-motor').innerText = data.motor;
+            document.getElementById('n-dp').innerText = data.dp_gross;
+            document.getElementById('n-disc').innerText = data.disc;
+            document.getElementById('n-incv').innerText = data.insentif;
+            document.getElementById('n-dp-disc').innerText = data.dp_min_disc;
+            document.getElementById('n-dp-disc-incv').innerText = data.dp_min_disc_incv;
+
+            document.getElementById('lbl-disc').innerText = "1. DISC CASH (Noka 2026)";
+            document.getElementById('note-disc').innerText = "Diskon cash instansi/perusahaan";
+            document.getElementById('lbl-dpdisc').innerText = "3. OTR - DISC (Cash Nett)";
+            document.getElementById('note-dpdisc').innerText = "Harga OTR dikurangi Diskon Cash";
+            document.getElementById('lbl-net').innerText = "4. OTR - DISC - INSENTIF";
+            document.getElementById('note-net').innerText = "Nett cash setelah dikurangi Diskon & Insentif Salesman";
 
             document.getElementById('notif-overlay').style.display = 'flex';
         }}
