@@ -249,8 +249,9 @@ st.markdown(
     f"**Acuan Insentif:** `Insentif Salesman`"
 )
 
-# --- TOMBOL ITEM CASH SEBELUM TABEL ---
+# --- SIAPKAN DATA & TOMBOL CASH TERINTEGRASI DI DALAM KOMPONEN HTML/JS ---
 cash_row = sub_cash.iloc[0] if not sub_cash.empty else None
+cash_json_attr = "{}"
 if cash_row is not None:
     c_disc26 = float(cash_row['DISKON_2026'])
     c_incv = float(cash_row['INCV_SALES'])
@@ -267,22 +268,11 @@ if cash_row is not None:
         "dp_min_disc": format_rp_angka(c_otr - c_disc26),
         "dp_min_disc_incv": format_rp_angka(c_otr - c_disc26 - c_incv)
     }
-    cash_json = json.dumps(cash_payload).replace('"', '&quot;')
-    
-    st.markdown(
-        f"""
-        <div style="margin: 15px 0 10px 0;">
-            <button onclick="showCashNotif({cash_json})" style="background-color: #047857; color: white; border: none; padding: 10px 18px; border-radius: 6px; font-weight: 600; font-size: 14px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                💵 CEK CASH (INSTANSI / PO) — Klik untuk Rincian
-            </button>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    cash_json_attr = json.dumps(cash_payload).replace('"', '&quot;')
 
 st.markdown("---")
 
-# --- MEMBANGUN TABEL HTML INTERAKTIF FULL LEBAR ---
+# --- MEMBANGUN TABEL HTML & TOMBOL CASH INTERAKTIF ---
 if not selected_dps:
     st.warning("Silakan pilih minimal satu nominal **DP Gross** pada kotak pilihan di atas.")
 else:
@@ -427,9 +417,27 @@ else:
             padding: 0;
             background: transparent;
         }}
+        .cash-btn-container {{
+            margin-bottom: 12px;
+        }}
+        .cash-btn {{
+            background-color: #047857;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background 0.15s ease;
+        }}
+        .cash-btn:hover {{
+            background-color: #065f46;
+        }}
         .table-container {{
             width: 100%;
-            max-height: 600px;
+            max-height: 580px;
             overflow: auto;
             border: 1px solid #cbd5e1;
             border-radius: 8px;
@@ -587,6 +595,12 @@ else:
     </head>
     <body>
 
+    <div class="cash-btn-container">
+        <button class="cash-btn" onclick='showCashNotif({cash_json_attr})'>
+            💵 CEK CASH (INSTANSI / PO) — Klik untuk Rincian
+        </button>
+    </div>
+
     <div class="table-container">
         <table>
             <thead>
@@ -605,7 +619,7 @@ else:
                 <span style="font-size:13px; color:#fde047;" id="n-angsuran"></span>
             </div>
             <div class="notif-sub">
-                Tipe: <strong id="n-motor" style="color:#fff;"></strong> &nbsp;|&nbsp; Harga / DP Gross: <strong id="n-dp" style="color:#fff;"></strong>
+                Tipe: <strong id="n-motor" style="color:#fff;"></strong> &nbsp;|&nbsp; OTR / DP: <strong id="n-dp" style="color:#fff;"></strong>
             </div>
 
             <div class="metric-grid">
@@ -710,9 +724,8 @@ else:
     </html>
     """
 
-    components.html(html_code, height=620, scrolling=False)
+    components.html(html_code, height=660, scrolling=False)
 
-    # Tombol Download CSV HANYA MUNCUL JIKA USER ADALAH ADMIN (PAPINYACICOZRA)
     if is_admin:
         df_csv = pd.DataFrame(csv_export_rows)
         csv_bytes = df_csv.to_csv(index=False).encode('utf-8')
