@@ -73,7 +73,6 @@ def categorize_motor(name):
 
 @st.cache_data
 def load_all_programs_from_bytes(file_bytes, file_name):
-    # Gunakan BytesIO untuk membaca file excel dari uploader atau default path
     if isinstance(file_bytes, bytes):
         excel_file = io.BytesIO(file_bytes)
     else:
@@ -150,22 +149,32 @@ def load_all_programs_from_bytes(file_bytes, file_name):
 
     return df_reg, df_all33, df_adira33, df_baf
 
-# --- HEADER UTAMA & TOMBOL UPLOAD DI POJOK KANAN ATAS ---
-col_head1, col_head2 = st.columns([2.5, 1.5])
+# --- HEADER UTAMA & PANEL AKSES / PASSWORD DI KANAN ATAS ---
+col_head1, col_head2 = st.columns([2.2, 1.8])
 
 with col_head1:
     st.title("🏍️ Dashboard Komparasi Angsuran Yamaha")
     st.caption("💡 **Fitur Interaktif:** Klik angka angsuran untuk melihat rincian DISC, Insentif Salesman, & DP Bayar.")
 
 with col_head2:
-    uploaded_file = st.file_uploader("📂 Upload Price List Baru (.xls / .xlsx)", type=["xls", "xlsx"])
+    # Input Password Akses / Mode Upload
+    mode_akses = st.text_input("🔑 Masukkan Kode Akses (DEALER / PAPINYACICOZRA):", value="DEALER", type="password")
 
-# Load data (menggunakan file uploader jika ada, atau file default)
+# Cek Password
+is_admin = (mode_akses.strip().upper() == "PAPINYACICOZRA")
+
+uploaded_file = None
+if is_admin:
+    st.success("🔓 **Mode Admin Aktif:** Silakan upload file pricelist baru di bawah ini.")
+    uploaded_file = st.file_uploader("📂 Upload Price List Baru (.xls / .xlsx)", type=["xls", "xlsx"])
+else:
+    st.info("🔒 **Mode Dealer (Sales):** Tombol upload file disembunyikan. Masukkan kode akses admin untuk mengaktifkan.")
+
+# Load data (menggunakan file uploader jika admin upload, atau file default)
 try:
     if uploaded_file is not None:
         file_bytes = uploaded_file.getvalue()
         df_reg, df_all33, df_adira33, df_baf = load_all_programs_from_bytes(file_bytes, uploaded_file.name)
-        st.success(f"Berhasil memuat file baru: **{uploaded_file.name}**")
     else:
         df_reg, df_all33, df_adira33, df_baf = load_all_programs_from_bytes(DEFAULT_FILEPATH, DEFAULT_FILEPATH)
 except Exception as e:
@@ -189,15 +198,13 @@ col_f1, col_f2, col_f3 = st.columns([1.2, 1.8, 2.0])
 with col_f1:
     pilih_kategori = st.selectbox("1️⃣ Pilih Kategori Seri:", available_categories)
 
-# Filter daftar motor berdasarkan kategori yang dipilih di dropdown 1
 filtered_motors = sorted([m for m in all_motor_types if motor_category_map[m] == pilih_kategori])
 if not filtered_motors:
-    filtered_motors = all_motor_types # fallback jika kosong
+    filtered_motors = all_motor_types
 
 with col_f2:
     pilih_motor = st.selectbox("2️⃣ Pilih Model Spesifik:", filtered_motors)
 
-# Filter masing-masing sheet berdasarkan motor terpilih
 sub_reg = df_reg[df_reg['TYPE_NORM'] == pilih_motor]
 sub_all33 = df_all33[df_all33['TYPE_NORM'] == pilih_motor]
 sub_adi33 = df_adira33[df_adira33['TYPE_NORM'] == pilih_motor]
@@ -636,10 +643,8 @@ else:
     </html>
     """
 
-    # Render Tabel HTML Melebar Full Width
     components.html(html_code, height=620, scrolling=False)
 
-    # Tombol Download CSV
     df_csv = pd.DataFrame(csv_export_rows)
     csv_bytes = df_csv.to_csv(index=False).encode('utf-8')
     st.download_button(
