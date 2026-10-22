@@ -158,9 +158,9 @@ with col_head1:
 
 with col_head2:
     # Input Password Akses / Mode Upload
-    mode_akses = st.text_input("🔑 Masukkan Kode Akses (DEALER / PAPINYACICOZRA):", value="DEALER", type="password")
+    mode_akses = st.text_input("🔑 Masukkan kode akses:", value="", type="password")
 
-# Cek Password
+# Cek Password (default dealer jika kosong/salah, aktif upload jika PAPINYACICOZRA)
 is_admin = (mode_akses.strip().upper() == "PAPINYACICOZRA")
 
 uploaded_file = None
@@ -168,7 +168,10 @@ if is_admin:
     st.success("🔓 **Mode Admin Aktif:** Silakan upload file pricelist baru di bawah ini.")
     uploaded_file = st.file_uploader("📂 Upload Price List Baru (.xls / .xlsx)", type=["xls", "xlsx"])
 else:
-    st.info("🔒 **Mode Dealer (Sales):** Tombol upload file disembunyikan. Masukkan kode akses admin untuk mengaktifkan.")
+    if mode_akses.strip() != "":
+        st.warning("🔒 Kode akses salah. Mode Dealer (Sales) aktif.")
+    else:
+        st.info("🔒 **Mode Dealer (Sales):** Tombol upload file disembunyikan.")
 
 # Load data (menggunakan file uploader jika admin upload, atau file default)
 try:
@@ -587,7 +590,7 @@ else:
 
                 <div class="metric-row highlight-1">
                     <div>
-                        <span class="metric-label">3. DP - DISC (DP Bayar)</span>
+                        <span class="metric-label">3. DISC (DP Bayar)</span>
                         <span class="metric-note">DP Gross dikurangi Diskon 2026</span>
                     </div>
                     <span class="metric-val" style="color:#4ade80;" id="n-dp-disc"></span>
